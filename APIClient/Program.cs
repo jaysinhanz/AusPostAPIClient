@@ -22,6 +22,7 @@ namespace APIClient
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", false, true)
             .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+            .AddUserSecrets<Program>()
             .Build();
 
         static async Task Main(string[] args)
@@ -57,6 +58,7 @@ namespace APIClient
             registry.Add("NoOpPolicy", noOpPolicy);
 
             var connectionString = Configuration.GetConnectionString("NorthWindCon");
+           
             var columnOption = new ColumnOptions();
             columnOption.Store.Remove(StandardColumn.MessageTemplate);
             var minLevel = (LogEventLevel)Enum.Parse(typeof(LogEventLevel), Configuration.GetSection("DBLogLevel").Value);
