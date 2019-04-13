@@ -27,6 +27,12 @@ namespace APIClient
 
         static async Task Main(string[] args)
         {
+            Serilog.Debugging.SelfLog.Enable(msg =>
+            {
+                Debug.Print(msg);
+                Debugger.Break();
+            });
+
             var serviceCollection = new ServiceCollection();
             Configure(serviceCollection);
             var serviceProvider = serviceCollection.BuildServiceProvider();
@@ -42,27 +48,26 @@ namespace APIClient
 
         private static void Configure(IServiceCollection serviceCollection)
         {
-            //Update changes
-            IPolicyRegistry<string> registry = serviceCollection.AddPolicyRegistry();
-            IAsyncPolicy<HttpResponseMessage> httpRetryPolicy = Policy
-                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode).RetryAsync(3);
-            registry.Add("SimpleRetryPolicy",httpRetryPolicy);
+            ConfigurePolly(serviceCollection);
+            ConfigureSeriLogging(serviceCollection);
+            
+           serviceCollection.AddHttpClient<AusPostClient>()
+                .AddHttpMessageHandler<LogRequestHandler>()
+                .AddPolicyHandlerFromRegistry((SelectPolicy));
 
-            IAsyncPolicy<HttpResponseMessage> httpRetryWaitPolicy = Policy
-                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
-                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt) / 2));
-            registry.Add("WaitRetryPolicy", httpRetryWaitPolicy);
+            serviceCollection.AddSingleton<IConfiguration>(Configuration);
+            serviceCollection.AddTransient<HttpClientFactoryInstanceManagementService>();
+            serviceCollection.AddTransient<LogRequestHandler>();
 
-            IAsyncPolicy<HttpResponseMessage> noOpPolicy = Policy.NoOpAsync()
-                .AsAsyncPolicy<HttpResponseMessage>();
-            registry.Add("NoOpPolicy", noOpPolicy);
+        }
 
+        private static void ConfigureSeriLogging(IServiceCollection serviceCollection)
+        {
             var connectionString = Configuration.GetConnectionString("NorthWindCon");
-           
             var columnOption = new ColumnOptions();
             columnOption.Store.Remove(StandardColumn.MessageTemplate);
             var minLevel = (LogEventLevel)Enum.Parse(typeof(LogEventLevel), Configuration.GetSection("DBLogLevel").Value);
-           //Configuration.GetSection("Serilog:WriteTo:4:Args:restrictedToMinimumLevel").Value;
+            //Configuration.GetSection("Serilog:WriteTo:4:Args:restrictedToMinimumLevel").Value;
 
             columnOption.AdditionalDataColumns = new Collection<DataColumn>
             {
@@ -75,23 +80,27 @@ namespace APIClient
                 .WriteTo.Logger(lc => lc
                     .MinimumLevel.Information()
                     .Filter.ByIncludingOnly(expression: "StartsWith(Source, 'APIClient.Log')")
-                    .WriteTo.MSSqlServer(connectionString, "Logs",restrictedToMinimumLevel: minLevel, columnOptions: columnOption)
+                    .WriteTo.MSSqlServer(connectionString, "Logs", restrictedToMinimumLevel: minLevel, columnOptions: columnOption)
                 )
                 .CreateLogger();
-            Serilog.Debugging.SelfLog.Enable(msg =>
-            {
-                Debug.Print(msg);
-                Debugger.Break();
-            });
-
             serviceCollection.AddSingleton<ILogger>(logger);
-            serviceCollection.AddHttpClient<AusPostClient>()
-                .AddHttpMessageHandler<LogRequestHandler>()
-                .AddPolicyHandlerFromRegistry((SelectPolicy));
-            serviceCollection.AddSingleton<IConfiguration>(Configuration);
-            serviceCollection.AddTransient<HttpClientFactoryInstanceManagementService>();
-            serviceCollection.AddTransient<LogRequestHandler>();
+        }
 
+        private static void ConfigurePolly(IServiceCollection serviceCollection)
+        {
+            IPolicyRegistry<string> registry = serviceCollection.AddPolicyRegistry();
+            IAsyncPolicy<HttpResponseMessage> httpRetryPolicy = Policy
+                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode).RetryAsync(3);
+            registry.Add("SimpleRetryPolicy", httpRetryPolicy);
+
+            IAsyncPolicy<HttpResponseMessage> httpRetryWaitPolicy = Policy
+                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt) / 2));
+            registry.Add("WaitRetryPolicy", httpRetryWaitPolicy);
+
+            IAsyncPolicy<HttpResponseMessage> noOpPolicy = Policy.NoOpAsync()
+                .AsAsyncPolicy<HttpResponseMessage>();
+            registry.Add("NoOpPolicy", noOpPolicy);
         }
 
         private static IAsyncPolicy<HttpResponseMessage> SelectPolicy(IReadOnlyPolicyRegistry<string> policyRegistry, HttpRequestMessage httpRequestMessage)
