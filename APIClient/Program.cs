@@ -42,7 +42,7 @@ namespace APIClient
 
         private static void Configure(IServiceCollection serviceCollection)
         {
-
+            //Update changes
             IPolicyRegistry<string> registry = serviceCollection.AddPolicyRegistry();
             IAsyncPolicy<HttpResponseMessage> httpRetryPolicy = Policy
                 .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode).RetryAsync(3);
