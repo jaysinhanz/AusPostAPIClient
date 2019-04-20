@@ -22,7 +22,7 @@ namespace APIClient
             _configuration = configuration;
             _logger = logger;
             _httpClient.BaseAddress = new Uri("https://digitalapi.auspost.com.au");
-            _httpClient.Timeout = new TimeSpan(0, 0, 0, 1);
+            _httpClient.Timeout = new TimeSpan(0, 0, 0, 30);
             _httpClient.DefaultRequestHeaders.Clear();
         }
 

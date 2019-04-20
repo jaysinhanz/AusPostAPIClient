@@ -64,10 +64,11 @@ namespace APIClient
         private static void ConfigureSeriLogging(IServiceCollection serviceCollection)
         {
             var connectionString = Configuration.GetConnectionString("NorthWindCon");
+            var minLevel = (LogEventLevel)Enum.Parse(typeof(LogEventLevel), Configuration.GetSection("DBLogLevel").Value);
+
+
             var columnOption = new ColumnOptions();
             columnOption.Store.Remove(StandardColumn.MessageTemplate);
-            var minLevel = (LogEventLevel)Enum.Parse(typeof(LogEventLevel), Configuration.GetSection("DBLogLevel").Value);
-            //Configuration.GetSection("Serilog:WriteTo:4:Args:restrictedToMinimumLevel").Value;
 
             columnOption.AdditionalDataColumns = new Collection<DataColumn>
             {
